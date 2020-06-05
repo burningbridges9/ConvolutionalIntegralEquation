@@ -2,19 +2,41 @@
 //
 
 #include <iostream>
+#include "IntegralCalculator.h"
+#include "Well.h"
+#include <cmath>
+#include "СonvolutionalIntegralEquation.h"
+#include "SequentialSolver.h"
+#define _USE_MATH_DEFINES
+#define M_PI 3.14159265358979323846
+using namespace std;
+
+
+int * GetIndexes(Well * wells)
+{
+	auto *indexes = new int[3];
+	for (int i = 0; i < 3; i++)
+	{
+		int tempVal = 0;
+		for (int j = 0; j <= i; j++)
+		{
+			tempVal += wells[j].N;
+		}
+		indexes[i] = tempVal - i;
+	}
+	return indexes;
+}
 
 int main()
 {
-    std::cout << "Hello World!\n";
+	auto * wells = new Well[3];
+	for (int i = 1; i <= 3; i++)
+	{
+		Well * well = new Well(5 * i, 5 * i, 3, 5 * (i - 1), 5 * i, 1, 1, 0.1, 10, 4, 0.3, 0, 100);
+		wells[i - 1] = *well;
+	}
+	auto * indexes = GetIndexes(wells);
+	auto sqSolver = SequentialSolver(wells, indexes);
+	sqSolver.Solve();
+	return 0;
 }
-
-// Запуск программы: CTRL+F5 или меню "Отладка" > "Запуск без отладки"
-// Отладка программы: F5 или меню "Отладка" > "Запустить отладку"
-
-// Советы по началу работы 
-//   1. В окне обозревателя решений можно добавлять файлы и управлять ими.
-//   2. В окне Team Explorer можно подключиться к системе управления версиями.
-//   3. В окне "Выходные данные" можно просматривать выходные данные сборки и другие сообщения.
-//   4. В окне "Список ошибок" можно просматривать ошибки.
-//   5. Последовательно выберите пункты меню "Проект" > "Добавить новый элемент", чтобы создать файлы кода, или "Проект" > "Добавить существующий элемент", чтобы добавить в проект существующие файлы кода.
-//   6. Чтобы снова открыть этот проект позже, выберите пункты меню "Файл" > "Открыть" > "Проект" и выберите SLN-файл.
