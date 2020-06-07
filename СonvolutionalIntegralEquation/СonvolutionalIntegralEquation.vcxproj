@@ -152,11 +152,15 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Logger.cpp" />
     <ClCompile Include="СonvolutionalIntegralEquation.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="IntegralCalculator.h" />
+    <ClInclude Include="Logger.h" />
+    <ClInclude Include="ParallelSolver.h" />
     <ClInclude Include="SequentialSolver.h" />
+    <ClInclude Include="Solver.h" />
     <ClInclude Include="Well.h" />
     <ClInclude Include="СonvolutionalIntegralEquation.h" />
   </ItemGroup>
