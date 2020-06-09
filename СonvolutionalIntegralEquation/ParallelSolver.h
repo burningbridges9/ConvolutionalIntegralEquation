@@ -19,7 +19,7 @@ class ParallelSolver : public Solver
 {
 public:
 	ParallelSolver(Logger *log, Well * wells, int * indexes);
-
+	~ParallelSolver();
 protected:
 	double * GetTimesForPressures(Well * wells);
 	double * GetTimesForCoefs(int allN, Well * wells);
@@ -28,7 +28,6 @@ protected:
 	double * GaussSeidel(double** A, double* B, int N);
 	double * GaussReverse(double** A, double* B, int N);
 	bool Converge(double * xk, double * xkp, int N);
-	Logger logger;
 };
 
 
@@ -41,24 +40,33 @@ double * ParallelSolver::GetTimesForPressures(Well * wells)
 	auto * times = new double[allN]; // to avoid the same rows in slae
 
 	double step = (wells[0].Time2 - wells[0].Time1) / (wells[0].N - 1);
-#pragma omp parallel for schedule(dynamic, allN/omp_get_num_threads())
+#pragma omp parallel for schedule(guided) 
 	for (int i = 0; i < allN; i++)
 	{
 		times[i] = wells[0].Time1 + i * step;
 		//cout << "times[" << i << "] = " << times[i] << endl;
+		//cout << "thread = " << omp_get_thread_num() << endl;
 	}
 	double endtime = omp_get_wtime();
-	printf("PARALLEL: GetTimesForPressures elapsed time = %f \n", (endtime - startTime) / (CLOCKS_PER_SEC / 1000));
+	//printf("PARALLEL: GetTimesForPressures elapsed time = %f \n", (endtime - startTime) / (CLOCKS_PER_SEC / 1000));
 	/*for (int i = 0; i < allN; i++)
 	{
 		cout << "times[" << i << "] = " << times[i] << endl;
 	}*/
+
+	logger->Log("GetTimesForPressures", (endtime - startTime) / (CLOCKS_PER_SEC / 1000));
 	return times;
 }
 
-ParallelSolver::ParallelSolver(Logger *log, Well * wells, int * indexes) : Solver(wells, indexes)
+ParallelSolver::ParallelSolver(Logger *log, Well * wells, int * indexes) : Solver(log, wells, indexes)
 {
-	logger = *log;
+	string msg = "Starting ParallelSolver N = " + to_string(wells[0].N * 3) + '\n';
+	this->logger->Log(msg);
+}
+
+ParallelSolver::~ParallelSolver()
+{
+	this->logger->Log("Finishing ParallelSolver");
 }
 
 double * ParallelSolver::GetTimesForCoefs(int allN, Well * wells)
@@ -67,14 +75,14 @@ double * ParallelSolver::GetTimesForCoefs(int allN, Well * wells)
 	auto * times = new double[allN]; // to avoid same rows in slae
 	double step = (wells[0].Time2 - wells[0].Time1) / (wells[0].N - 1);
 
-#pragma omp parallel for schedule(dynamic, allN/omp_get_num_threads())
+#pragma omp parallel for schedule(guided) 
 	for (int i = 0; i < allN; i++)
 	{
 		times[i] = wells[0].Time1 + i * step;
 		//cout << "times[" << i << "] = " << times[i] << endl;
 	}
 	double endtime = omp_get_wtime();
-	printf("PARALLEL: GetTimesForCoefs elapsed time = %f \n", (endtime - startTime) / (CLOCKS_PER_SEC / 1000)); 
+	//printf("PARALLEL: GetTimesForCoefs elapsed time = %f \n", (endtime - startTime) / (CLOCKS_PER_SEC / 1000)); 
 #pragma region dbg
 	/*for (int i = 0; i < allN; i++)
 {
@@ -82,6 +90,7 @@ double * ParallelSolver::GetTimesForCoefs(int allN, Well * wells)
 }*/
 #pragma endregion
 
+	logger->Log("GetTimesForCoefs", (endtime - startTime) / (CLOCKS_PER_SEC / 1000));
 	return times;
 }
 
@@ -89,58 +98,34 @@ double * ParallelSolver::GetPressuresForRightSide(int allN, int * indexes, Well 
 {
 	double startTime = omp_get_wtime();
 	auto * eqPressures = new double[allN - 1];
-	omp_set_nested(true);
-#pragma omp parallel 
-	{
-		int n = omp_get_thread_num();
-
-#pragma omp parallel for
+#pragma omp parallel for schedule(guided) 
 		for (int i = 0; i < indexes[0] - 1; i++)
 		{
 			eqPressures[i] = wells[0].CalculatedP - wells[0].P0;
-#pragma region dbg
-			//cout << "eqPressures[" << i << "] = " << eqPressures[i] << endl;
-
-		/*printf("loop 1, thread %d - %d\n", n,
-			omp_get_thread_num());*/
-#pragma endregion
 		}
 
-#pragma omp parallel
+#pragma omp parallel for schedule(guided) 
 		for (int i = indexes[0] - 1; i <= indexes[1]; i++)
 		{
 			eqPressures[i] = wells[1].CalculatedP - wells[0].P0;
-#pragma region dbg
-			//cout << "eqPressures[" << i << "] = " << eqPressures[i] << endl;
-
-		/*printf("loop 2, thread %d - %d\n", n,
-			omp_get_thread_num());*/
-#pragma endregion
 		}
 
-#pragma omp parallel
+#pragma omp parallel for schedule(guided) 
 		for (int i = indexes[1]; i < indexes[2] - 1; i++)
 		{
 			eqPressures[i] = wells[2].CalculatedP - wells[0].P0;
-#pragma region dbg
-			//cout << "eqPressures[" << i << "] = " << eqPressures[i] << endl;
-
-
-		/*printf("loop 3, thread %d - %d\n", n,
-			omp_get_thread_num());*/
-#pragma endregion
 		}
-	}
-	omp_set_nested(false);
 
 	double endtime = omp_get_wtime();
-	printf("PARALLEL: GetPressuresForRightSide elapsed time = %f \n", (endtime - startTime) / (CLOCKS_PER_SEC / 1000));
+	//printf("PARALLEL: GetPressuresForRightSide elapsed time = %f \n", (endtime - startTime) / (CLOCKS_PER_SEC / 1000));
 #pragma region dbg
 	/*for (int i = 0; i < allN - 1; i++)
 {
 	cout << "eqPressures[" << i << "] = " << eqPressures[i] << endl;
 }*/
 #pragma endregion
+
+	logger->Log("GetPressuresForRightSide", (endtime - startTime) / (CLOCKS_PER_SEC / 1000));
 	return eqPressures;
 }
 
@@ -148,113 +133,145 @@ double ** ParallelSolver::PrepareCoefs(double * times, Well* wells, int N)
 {
 	double ** coefs = new double *[N - 1];
 
-#pragma omp parallel for
-		for (int i = 0; i < N - 1; i++)
-			coefs[i] = new double[N - 1];
+#pragma omp parallel for schedule(guided) 
+	for (int i = 0; i < N - 1; i++)
+		coefs[i] = new double[N - 1];
 
 	int n, k;
 #pragma region Collapse is not working
-//#pragma omp parallel for collapse(2)
-	//for (int i = 0; i < N - 1; i++)
-	//{
-	//	n = i + 1;
-	//	for (int j = 0; j < N - 1; j++)
-	//	{
-	//		k = j + 1;
-	//		if (k <= n)
-	//		{
-	//			double E1, E2, arg1, arg2;
+	//#pragma omp parallel for collapse(2)
+		//for (int i = 0; i < N - 1; i++)
+		//{
+		//	n = i + 1;
+		//	for (int j = 0; j < N - 1; j++)
+		//	{
+		//		k = j + 1;
+		//		if (k <= n)
+		//		{
+		//			double E1, E2, arg1, arg2;
 
-	//			arg1 = pow(wells[0].Rs, 2) * 1.0 / (4 * wells[0].Kappa * (times[n] - times[k - 1]));
-	//			E1 = arg1 < 1 ? IntegralCalculator::PolyApproxExpIntegral2(arg1) : IntegralCalculator::PolyApproxExpIntegral1(arg1);
+		//			arg1 = pow(wells[0].Rs, 2) * 1.0 / (4 * wells[0].Kappa * (times[n] - times[k - 1]));
+		//			E1 = arg1 < 1 ? IntegralCalculator::PolyApproxExpIntegral2(arg1) : IntegralCalculator::PolyApproxExpIntegral1(arg1);
 
-	//			if (k == n)
-	//			{
-	//				E1 = E1 + wells[0].Ksi;
-	//				arg2 = 0.0;
-	//			}
-	//			else
-	//			{
-	//				arg2 = pow(wells[0].Rs, 2) * 1.0 / (4 * wells[0].Kappa * (times[n] - times[k]));
-	//			}
+		//			if (k == n)
+		//			{
+		//				E1 = E1 + wells[0].Ksi;
+		//				arg2 = 0.0;
+		//			}
+		//			else
+		//			{
+		//				arg2 = pow(wells[0].Rs, 2) * 1.0 / (4 * wells[0].Kappa * (times[n] - times[k]));
+		//			}
 
-	//			E2 = (arg2 < 1) && (arg2 > 0.0) ? IntegralCalculator::PolyApproxExpIntegral2(arg2) : 0.0;
-	//			auto coefBefore = wells[0].Mu / (4.0 * M_PI * wells[0].K * wells[0].H0); // 39788735772.973831
-	//			coefs[i][j] = coefBefore * (E1 - E2);
-	//		}
-	//		else
-	//		{
-	//			coefs[i][j] = 0.0;
-	//		}
-	//	}
-	//}
+		//			E2 = (arg2 < 1) && (arg2 > 0.0) ? IntegralCalculator::PolyApproxExpIntegral2(arg2) : 0.0;
+		//			auto coefBefore = wells[0].Mu / (4.0 * M_PI * wells[0].K * wells[0].H0); // 39788735772.973831
+		//			coefs[i][j] = coefBefore * (E1 - E2);
+		//		}
+		//		else
+		//		{
+		//			coefs[i][j] = 0.0;
+		//		}
+		//	}
+		//}
 #pragma endregion
 
 
+	double startTime = omp_get_wtime();
+	//(dynamic, N/omp_get_num_threads()) 
 #pragma region test only
-	#pragma omp parallel for private (n,k)
-		for (int ij = 0; ij < (N - 1)*(N - 1); ij++)
+#pragma omp parallel for schedule(guided) private (n,k) // dynamic and etc // debug & release
+	for (int ij = 0; ij < (N - 1)*(N - 1); ij++)
+	{
+		int i = ij / (N - 1);
+		int j = ij % (N - 1);
+
+		n = i + 1;
+		k = j + 1;
+		if (k <= n)
 		{
-			int i = ij / (N - 1);
-			int j = ij % (N - 1);
-	
-			n = i + 1;
-			k = j + 1;
-			if (k <= n)
+			double E1, E2, arg1, arg2;
+
+			arg1 = pow(wells[0].Rs, 2) * 1.0 / (4 * wells[0].Kappa * (times[n] - times[k - 1]));
+			E1 = arg1 < 1 ? IntegralCalculator::PolyApproxExpIntegral2(arg1) : IntegralCalculator::PolyApproxExpIntegral1(arg1);
+
+			if (k == n)
 			{
-				double E1, E2, arg1, arg2;
-	
-				arg1 = pow(wells[0].Rs, 2) * 1.0 / (4 * wells[0].Kappa * (times[n] - times[k - 1]));
-				E1 = arg1 < 1 ? IntegralCalculator::PolyApproxExpIntegral2(arg1) : IntegralCalculator::PolyApproxExpIntegral1(arg1);
-	
-				if (k == n)
-				{
-					E1 = E1 + wells[0].Ksi;
-					arg2 = 0.0;
-				}
-				else
-				{
-					arg2 = pow(wells[0].Rs, 2) * 1.0 / (4 * wells[0].Kappa * (times[n] - times[k]));
-				}
-	
-				E2 = (arg2 < 1) && (arg2 > 0.0) ? IntegralCalculator::PolyApproxExpIntegral2(arg2) : 0.0;
-				auto coefBefore = wells[0].Mu / (4.0 * M_PI * wells[0].K * wells[0].H0); // 39788735772.973831
-				coefs[i][j] = coefBefore * (E1 - E2);
+				E1 = E1 + wells[0].Ksi;
+				arg2 = 0.0;
 			}
 			else
 			{
-				coefs[i][j] = 0.0;
+				arg2 = pow(wells[0].Rs, 2) * 1.0 / (4 * wells[0].Kappa * (times[n] - times[k]));
 			}
+
+			E2 = (arg2 < 1) && (arg2 > 0.0) ? IntegralCalculator::PolyApproxExpIntegral2(arg2) : 0.0;
+			auto coefBefore = wells[0].Mu / (4.0 * M_PI * wells[0].K * wells[0].H0); // 39788735772.973831
+			coefs[i][j] = coefBefore * (E1 - E2);
 		}
-	
+		else
+		{
+			coefs[i][j] = 0.0;
+		}
+	}
+
 #pragma endregion
+
+
+	double endtime = omp_get_wtime();
+	logger->Log("PrepareCoefs", (endtime - startTime) / (CLOCKS_PER_SEC / 1000));
 	return coefs;
 }
 
 double * ParallelSolver::GaussSeidel(double** A, double* B, int N)
 {
+	double startTime = omp_get_wtime();
 	double * prev = new double[N];
 	double * x = new double[N];
-	for (size_t i = 0; i < N; i++)
-	{
+
+#pragma omp parallel for schedule(guided)
+	for (int i = 0; i < N; i++)
 		x[i] = 0;
-	}
-	int m = 1;
+
 	do
 	{
+#pragma omp parallel for schedule(guided)
 		for (int i = 0; i < N; i++)
 			prev[i] = x[i];
+
+#pragma omp parallel for schedule(guided)
 		for (int i = 0; i < N; i++)
 		{
-			double var = 0;
+			double sum = 0;
 			for (int j = 0; j < i; j++)
-				var += (A[i][j] * x[j]);
+				sum += (A[i][j] * x[j]);
+
 			for (int j = i + 1; j < N; j++)
-				var += (A[i][j] * prev[j]);
-			x[i] = (B[i] - var) / A[i][i];
+				sum += (A[i][j] * prev[j]);
+			x[i] = (B[i] - sum) / A[i][i];
 		}
-		m++;
+
+#pragma region second choice
+//		for (int i = 0; i < N; i++)
+//		{
+//			double sum = 0;
+//#pragma omp parallel for schedule(guided) reduction(+:sum)
+//			for (int j = 0; j < i; j++)
+//				sum += (A[i][j] * x[j]);
+//
+//#pragma omp parallel for schedule(guided) reduction(+:sum)
+//			for (int j = i + 1; j < N; j++)
+//				sum += (A[i][j] * prev[j]);
+//
+//			x[i] = (B[i] - sum) / A[i][i];
+//		}
+//
+//		// slower 2x
+#pragma endregion
+
 	} while (!Converge(x, prev, N));
+
+	double endtime = omp_get_wtime();
+	logger->Log("GaussSeidel", (endtime - startTime) / (CLOCKS_PER_SEC / 1000));
 	return x;
 }
 
@@ -262,27 +279,27 @@ bool ParallelSolver::Converge(double * xk, double * xkp, int N)
 {
 	double eps = 0.000001;
 	double norm = 0;
+#pragma omp parallel for schedule(guided) reduction(+:norm)
 	for (int i = 0; i < N; i++)
 		norm += (xk[i] - xkp[i]) * (xk[i] - xkp[i]);
 	return (sqrt(norm) < eps);
 }
 
-double * SequentialSolver::GaussReverse(double** A, double* B, int N)
+double * ParallelSolver::GaussReverse(double** A, double* B, int N)
 {
+	double startTime = omp_get_wtime();
 	double * x = new double[N];
-	for (size_t i = 0; i < N; i++)
+	for (int i = 0; i < N; i++)
 	{
 		double sum = 0.0;
-#pragma omp parallel for reduction(+:sum)
-		for (size_t j = 0; j < i; j++)
+#pragma omp parallel for schedule(guided) reduction(+:sum)
+		for (int j = 0; j < i; j++)
 		{
 			sum += A[i][j] * x[j];
 		}
 		x[i] = (B[i] - sum) / A[i][i];
 	}
-	for (size_t i = 0; i < N; i++)
-	{
-		cout << "x[" << i << "] = " << x[i] << endl;
-	}
+	double endtime = omp_get_wtime();
+	logger->Log("GaussReverse", (endtime - startTime) / (CLOCKS_PER_SEC / 1000));
 	return x;
 }

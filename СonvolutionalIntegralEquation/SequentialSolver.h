@@ -17,7 +17,7 @@ class SequentialSolver : public Solver
 {
 public:
 	SequentialSolver(Logger *log, Well * wells, int * indexes);
-
+	~SequentialSolver();
 protected:
 	double * GetTimesForPressures(Well * wells);
 	double * GetTimesForCoefs(int allN, Well * wells);
@@ -26,7 +26,6 @@ protected:
 	double * GaussSeidel(double** A, double* B, int N);
 	bool Converge(double * xk, double * xkp, int N);
 	double * GaussReverse(double** A, double* B, int N);
-	Logger logger;
 };
 
 
@@ -41,13 +40,19 @@ double * SequentialSolver::GetTimesForPressures(Well * wells)
 		times[i] = wells[0].Time1 + i * step;
 	}
 	double endtime = omp_get_wtime();
-	//printf("SEQUENTIAL: GetTimesForPressures elapsed time = %f \n", (endtime - startTime) / (CLOCKS_PER_SEC / 1000));
+	logger->Log("GetTimesForPressures", (endtime - startTime) / (CLOCKS_PER_SEC / 1000));
 	return times;
 }
 
-SequentialSolver::SequentialSolver(Logger *log, Well * wells, int * indexes) : Solver(wells, indexes)
+SequentialSolver::SequentialSolver(Logger *log, Well * wells, int * indexes) : Solver(log, wells, indexes)
 {
-	logger = *log;
+	string msg = "Starting SequentialSolver N = " + to_string(wells[0].N * 3) + '\n';
+	this->logger->Log(msg);
+}
+
+SequentialSolver::~SequentialSolver()
+{
+	this->logger->Log("Finishing SequentialSolver");
 }
 
 double * SequentialSolver::GetTimesForCoefs(int allN, Well * wells)
@@ -63,7 +68,7 @@ double * SequentialSolver::GetTimesForCoefs(int allN, Well * wells)
 		//cout << "times[" << i << "] = " << times[i] << endl;
 	}
 	double endtime = omp_get_wtime();
-	printf("SEQUENTIAL: GetTimesForPressures elapsed time = %f \n", (endtime - startTime) / (CLOCKS_PER_SEC / 1000));
+	logger->Log("GetTimesForCoefs", (endtime - startTime) / (CLOCKS_PER_SEC / 1000));
 	return times;
 }
 
@@ -87,12 +92,14 @@ double * SequentialSolver::GetPressuresForRightSide(int allN, int * indexes, Wel
 		//cout << "eqPressures[" << i << "] = " << eqPressures[i] << endl;
 	}
 	double endtime = omp_get_wtime();
-	printf("SEQUENTIAL: GetPressuresForRightSide elapsed time = %f \n", (endtime - startTime) / (CLOCKS_PER_SEC / 1000));
+	//printf("SEQUENTIAL: GetPressuresForRightSide elapsed time = %f \n", (endtime - startTime) / (CLOCKS_PER_SEC / 1000));
+	logger->Log("GetPressuresForRightSide", (endtime - startTime) / (CLOCKS_PER_SEC / 1000));
 	return eqPressures;
 }
 
 double ** SequentialSolver::PrepareCoefs(double * times, Well* wells, int N)
 {
+	double startTime = omp_get_wtime();
 	double ** coefs = new double *[N - 1];
 	for (int i = 0; i < N - 1; i++)
 		coefs[i] = new double[N - 1];
@@ -132,12 +139,14 @@ double ** SequentialSolver::PrepareCoefs(double * times, Well* wells, int N)
 			//cout << "coefs[" << i << "][" << j << "] = " << coefs[i][j] << endl;
 		}
 	}
-
+	double endtime = omp_get_wtime();
+	logger->Log("PrepareCoefs", (endtime - startTime) / (CLOCKS_PER_SEC / 1000));
 	return coefs;
 }
 
 double * SequentialSolver::GaussSeidel(double** A, double* B, int N)
 {
+	double startTime = omp_get_wtime();
 	double * prev = new double[N];
 	double * x = new double[N];
 	for (size_t i = 0; i < N; i++)
@@ -160,11 +169,14 @@ double * SequentialSolver::GaussSeidel(double** A, double* B, int N)
 		}
 		m++;
 	} while (!Converge(x, prev, N));
+	double endtime = omp_get_wtime();
+	logger->Log("GaussSeidel", (endtime - startTime) / (CLOCKS_PER_SEC / 1000));
 	return x;
 }
 
 double * SequentialSolver::GaussReverse(double** A, double* B, int N)
 {
+	double startTime = omp_get_wtime();
 	double * x = new double[N];
 	for (size_t i = 0; i < N; i++)
 	{
@@ -175,10 +187,12 @@ double * SequentialSolver::GaussReverse(double** A, double* B, int N)
 		}
 		x[i] = (B[i] - sum) / A[i][i];
 	}
-	for (size_t i = 0; i < N; i++)
+	/*for (size_t i = 0; i < N; i++)
 	{
 		cout << "x[" << i << "] = " << x[i] << endl;
-	}
+	}*/
+	double endtime = omp_get_wtime();
+	logger->Log("PrepareCoefs", (endtime - startTime) / (CLOCKS_PER_SEC / 1000));
 	return x;
 }
 

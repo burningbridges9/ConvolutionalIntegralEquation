@@ -20,8 +20,7 @@ public:
 		Path = baseFilePath + SolverName + ext;
 
 		writer.open(Path, std::ios::app);
-		writer << ":::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::";
-		writer << "New session" << endl;
+		writer << "::::::::::::::::::::::::::::::::::::::::::::::New session:::::::::::::::::::::::::::::::::::::::::::::::::::::" << endl;
 		writer.close();
 	}
 
@@ -33,6 +32,14 @@ public:
 	void Log(string methodName, double elapsedTime)
 	{
 		string message = methodName + " elapsed time = " + to_string(elapsedTime)+'\n';
+		writer.open(Path, std::ios::app);
+		writer << message;
+		writer.close();
+	}
+
+	void Log(string methodName)
+	{
+		string message = '\n' + methodName + '\n';
 		writer.open(Path, std::ios::app);
 		writer << message;
 		writer.close();
